@@ -1,8 +1,22 @@
 name: Update player stats
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Owner action (sync only updates statistics)'
+        type: choice
+        options: [sync, new, rename]
+        default: sync
+      series_name:
+        description: 'Name for the new series or current series'
+        type: string
+        required: false
+      expected_series_id:
+        description: 'Current Series ID from the website owner panel (required for new/rename)'
+        type: string
+        required: false
   schedule:
-    - cron: '17,47 * * * *'
+    - cron: '3,13,23,33,43,53 * * * *'
 permissions:
   contents: write
   pages: write
@@ -19,24 +33,29 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Collect saved statistics
+      - name: Collect saved statistics and series history
         id: collect
         run: node update.mjs
         env:
           EXAROTON_API_TOKEN: ${{ secrets.EXAROTON_API_TOKEN }}
           SERVER_ADDRESS: Life_Series.exaroton.me
           STATS_PATH: ${{ vars.STATS_PATH }}
-      - name: Save snapshot in repository
+          SERIES_ACTION: ${{ inputs.action || 'sync' }}
+          SERIES_NAME: ${{ inputs.series_name }}
+          EXPECTED_SERIES_ID: ${{ inputs.expected_series_id }}
+      - name: Save archive in repository
         if: steps.collect.outputs.publish == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add site
           if ! git diff --cached --quiet; then
-            git commit -m "Update player statistics snapshot"
+            git commit -m "Update statistics and series archive"
             git push
           fi
       - uses: actions/configure-pages@v5
