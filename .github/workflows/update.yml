@@ -1,0 +1,51 @@
+name: Update player stats
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: life-series-pages
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Collect saved statistics
+        id: collect
+        run: node update.mjs
+        env:
+          EXAROTON_API_TOKEN: ${{ secrets.EXAROTON_API_TOKEN }}
+          SERVER_ADDRESS: Life_Series.exaroton.me
+          STATS_PATH: ${{ vars.STATS_PATH }}
+      - name: Save snapshot in repository
+        if: steps.collect.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site
+          if ! git diff --cached --quiet; then
+            git commit -m "Update player statistics snapshot"
+            git push
+          fi
+      - uses: actions/configure-pages@v5
+        if: steps.collect.outputs.publish == 'true'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.collect.outputs.publish == 'true'
+        with:
+          path: site
+          retention-days: 1
+      - uses: actions/deploy-pages@v4
+        if: steps.collect.outputs.publish == 'true'
+        id: deployment
